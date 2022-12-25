@@ -29,7 +29,7 @@
 安装 `FastAPI`、`BeautifulSoup` 和 `requests` 库。
 
 ```bash
-pip install FastAPI BeautifulSoup requests
+pip install FastAPI BeautifulSoup4 requests
 ```
 运行项目根目录下 `main.py` 文件。
 
