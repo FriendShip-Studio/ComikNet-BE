@@ -26,7 +26,7 @@
 
 ## 运行方法
 
-安装 `FastAPI`、`BeautifulSoup` 和 `requests` 库。
+安装 `FastAPI`、`BeautifulSoup4` 和 `requests` 库。
 
 ```bash
 pip install FastAPI BeautifulSoup4 requests
