@@ -1,3 +1,5 @@
+import typing
+
 
 class Headers():
 
@@ -14,5 +16,8 @@ class Headers():
         self.headers["Referer"] = f"https://{host}/{ref}"
         self.headers["User-Agent"] = ua
 
-    def post(self):
+    @property
+    def headers_post(self):
         self.headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+        return self.headers

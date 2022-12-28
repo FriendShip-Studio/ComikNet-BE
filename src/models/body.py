@@ -7,6 +7,14 @@ class Login_Body(BaseModel):
     isRemember: bool = False
 
 
+class Reg_Body(BaseModel):
+    username: str
+    password: str
+    email: str
+    captcha: str
+    gender: str
+
+
 class Cookies():
 
     def __init__(self, avs: str, __cflb: str, ipcountry: str, ipm5: str, remember: str = ""):
