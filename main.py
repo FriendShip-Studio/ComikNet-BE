@@ -125,6 +125,7 @@ async def get_self_profile(AVS: str = Cookie(default=""), __cflb: str = Cookie(d
         f"https://{mirror}/user", cookies=utils.cookiejar_from_dict(cookies_dict),
         headers=Headers(mirror).headers
     )
+    
 
     document = BeautifulSoup(req.content, "lxml")
 
