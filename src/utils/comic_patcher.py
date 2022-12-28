@@ -2,7 +2,6 @@ import requests
 from requests.cookies import RequestsCookieJar
 from src.config.mirror import mirror
 from bs4 import BeautifulSoup
-from src.models.comic import ComicInfo
 
 
 def get_comic_info(id: str, cookies: RequestsCookieJar) -> dict:
@@ -11,6 +10,9 @@ def get_comic_info(id: str, cookies: RequestsCookieJar) -> dict:
         id = id[2:]
 
     req = requests.get(f"https://{mirror}/album/{id}/", cookies=cookies)
+
+    if(req.url == f"https://{mirror}/error/album_missing"):
+        return {"error": "未找到此漫画!"}
 
     document = BeautifulSoup(req.content, "lxml")
 
