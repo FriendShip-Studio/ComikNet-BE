@@ -9,6 +9,7 @@ import time
 from src.models.body import Login_Body, Cookies, Reg_Body
 from src.models.headers import Headers
 from src.config.mirror import mirror, JMTT_Mirror
+from src.utils.comic_patcher import get_comic_info
 
 app = FastAPI()
 
@@ -240,3 +241,18 @@ async def search(query: str, main_tag: int = 0, page: int = 1, AVS: str = Cookie
             "status_code": req.status_code,
             "data": comic_list
         }
+
+
+@app.get("/peek/{serial}")
+async def peek(serial: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+               ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = utils.cookiejar_from_dict(Cookies(
+        AVS, __cflb, ipcountry, ipm5, remember).__dict__())
+
+    if(serial.startswith("JM")):
+        serial = serial.removeprefix("JM")
+
+    return {
+        "data": get_comic_info(serial, cookies)
+    }
