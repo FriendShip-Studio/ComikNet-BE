@@ -1,259 +1,387 @@
-from fastapi import FastAPI, Cookie, Response, Header
+from fastapi import FastAPI, Response, Cookie
 from fastapi.responses import StreamingResponse
-import requests
-from requests import utils
 from bs4 import BeautifulSoup
+import requests
 import time
 
-# 类型库
-from src.models.body import Login_Body, Cookies, Reg_Body
-from src.models.headers import Headers
-from src.config.mirror import mirror, JMTT_Mirror
-from src.utils.comic_patcher import get_comic_info
+from src.models.headers import GetHeaders
+from src.models.body import LoginBody, SignupBody
+from src.models.sort import sortBy
+from src.utils.cookies import CookiesTranslate
+from src.utils.parseData import ParseData
 
 app = FastAPI()
 
+mirror = "www.asjmapihost.cc"
 
-@app.get("/mirror-status")
-async def ping_mirror():
-    server_result = {}
-    for server in JMTT_Mirror:
+web_url = "jmcomic2.onl"
 
-        try:
-            start_time = time.perf_counter()
-            req = requests.get(f"https://{server.value}/",
-                               timeout=10000, allow_redirects=False)
-
-            if(req.status_code == 301):
-                server_result[server.value] = f"Connection Redirected! Target: {req._next.url}"
-                continue
-            used_time = time.perf_counter()-start_time
-
-            server_result[server.value] = used_time
-
-        except Exception as e:
-            server_result[server.value] = "Connection Dead!"
-
-    return {
-        "data": server_result
-    }
+img_mirror = "cdn-msp.jmapiproxy2.cc"
 
 
 @app.get("/captcha")
-async def captcha(response: Response, user_agent: str = Header(default="")):
+async def get_captcha(response: Response):
 
-    req = requests.get(f"https://{mirror}/signup", headers=Headers(
-        mirror, user_agent
-    ).headers)
+    req = requests.get(f"https://{web_url}/login", verify=False)
 
-    signup_cookies = req.cookies
-    cookies_dict = signup_cookies.get_dict()
-
-    req = requests.get(f"https://{mirror}/captcha", headers=Headers(
-        mirror, user_agent
-    ).headers, cookies=signup_cookies)
+    cookies = req.cookies
+    cookies_dict = cookies.get_dict()
 
     for cookie in cookies_dict:
         response.set_cookie(cookie, cookies_dict[cookie])
+
+    req = requests.get(f"https://{web_url}/captcha",
+                       cookies=cookies, verify=False)
 
     return StreamingResponse(req.iter_content(), media_type="image/jpeg", headers=response.headers)
 
 
 @app.post("/register")
-async def reg(body: Reg_Body, user_agent: str = Header(default=""), AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-              ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default="")):
+async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                   ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
 
-    cookies_dict = Cookies(AVS, __cflb, ipcountry, ipm5).__dict__()
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
 
-    reg_form = {
+    req_time = int(time.time())
+
+    req_body = {
         "username": body.username,
         "password": body.password,
         "password_confirm": body.password,
         "email": body.email,
         "verification": body.captcha,
-        "gender": body.gender,
+        "gender": body.sex,
         "age": "on",
         "terms": "on",
         "submit_signup": ""
     }
 
-    req = requests.post(f"https://{mirror}/signup", data=reg_form, headers=Headers(
-        mirror, user_agent, "signup"
-    ).headers_post, allow_redirects=False, cookies=utils.cookiejar_from_dict(cookies_dict))
+    req = requests.post(f"https://{web_url}/signup", data=req_body, headers=GetHeaders(
+        req_time, "POST").headers, cookies=cookies, verify=False)
 
-    # 即将改动
-    return{
-        "data": req.text
+    msg_list = []
+    document = BeautifulSoup(req.content, "lxml")
+    for script in document.find_all("script"):
+        if(script.text.startswith("toastr['error']")):
+            msg_list.append({
+                "type": "error",
+                "msg": script.text.removeprefix("toastr['error']")[2:-2]
+            })
+        elif(script.text.startswith("toastr")):
+            msg_list.append({
+                "type": "default",
+                "msg": script.text.removeprefix("toastr['success']")[2:-2]
+            })
+
+    return {
+        "status_code": req.status_code,
+        "data": msg_list
     }
 
 
 @app.post("/login")
-async def login(body: Login_Body, response: Response, user_agent: str = Header(default="")):
+async def login(body: LoginBody, response: Response):
+
+    req_time = int(time.time())
 
     login_form = {
         "username": body.username,
         "password": body.password,
-        "submit_login": ""
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": None
     }
 
-    if(body.isRemember):
-        login_form["login_remember"] = "on"
+    req = requests.post(f"https://{mirror}/login", headers=GetHeaders(
+        req_time, "POST").headers, data=login_form, verify=False)
 
-    req = requests.post(
-        f"https://{mirror}/login", data=login_form, headers=Headers(
-            mirror, user_agent, "login"
-        ).headers_post,
-        allow_redirects=False)
+    if(req.status_code != 200):
+        return {
+            "errorMsg": req.json()["errorMsg"]
+        }
 
     cookies_dict = req.cookies.get_dict()
-
     for cookie in cookies_dict:
         response.set_cookie(cookie, cookies_dict[cookie])
 
     return {
         "status_code": req.status_code,
-        "username": body.username
+        "data": ParseData(req_time, req.json()["data"])
     }
 
 
-@app.get("/profile")
-async def get_self_profile(AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                           ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+@app.get("/favorite")
+async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid: str = "0", AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                  ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
 
-    cookies_dict = Cookies(AVS, __cflb, ipcountry, ipm5, remember).__dict__()
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
 
-    req = requests.get(
-        f"https://{mirror}/user", cookies=utils.cookiejar_from_dict(cookies_dict),
-        headers=Headers(mirror).headers
-    )
-    
+    req_time = int(time.time())
 
-    document = BeautifulSoup(req.content, "lxml")
+    if(sort not in [sortBy.Time.value, sortBy.Images.value]):
+        # 此处按图片排序代指按更新时间排序
+        sort = sortBy.Time.value
 
-    elem = document.find(
-        name="img", class_="header-personal-avatar")
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": None,
+        "page": page,
+        "folder_id": fid,
+        "o": sort
+    }
 
-    if(elem):
-        user_avatar = "https://"+mirror+elem.attrs["src"]
-        elem = document.find_all(name="div", class_="header-info-profile")
-        user_history = dict()
-        for e in elem:
-            if e.text.strip().startswith("戰鬥力"):
-                history_lst: list = e.text.strip().replace(
-                    "\n\n\n", "\n").split("\n")[2:]
-                for i in range(0, len(history_lst), 2):
-                    user_history[history_lst[i+1]] = history_lst[i]
+    req = requests.get(f"https://{mirror}/favorite/", params=req_body, headers=GetHeaders(
+        req_time, "GET").headers, verify=False, cookies=cookies)
 
-        return{
-            "status_code": req.status_code,
-            "data": {
-                "user_avatar": user_avatar,
-                "user_history": user_history
-            }
-        }
-    else:
-        return{
-            "status_code": req.status_code,
-            "msg": "用户未登录"
+    if(req.status_code != 200):
+        return {
+            "errorMsg": req.json()["errorMsg"]
         }
 
+    cookies_dict = req.cookies.get_dict()
+    for cookie in cookies_dict:
+        response.set_cookie(cookie, cookies_dict[cookie])
 
-@app.get("/favourite")
-async def get_self_fav(username: str, page: int = 1, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                       ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
-
-    cookies_dict = Cookies(AVS, __cflb, ipcountry, ipm5, remember).__dict__()
-
-    req = requests.get(
-        f"https://{mirror}/user/{username}/favorite/albums?page={page}", cookies=utils.cookiejar_from_dict(cookies_dict),
-        headers=Headers(mirror).headers
-    )
-
-    document = BeautifulSoup(req.content, "lxml")
-
-    elem = document.find(
-        name="div", class_="col-md-6").find(name="div", class_="row")
-
-    if(elem):
-        fav_comic = int(document.find(
-            "div", class_="pull-left m-l-20").text.strip()[5:].removesuffix("/ 400"))
-
-        comic_list = document.find_all(
-            name="div", class_="col-xs-6 col-sm-3 col-md-3 m-b-15 list-col")
-        comic_list = [{
-            "serial": "JM"+comic.find(name="a").attrs["href"].removeprefix("/album/").removesuffix("/"),
-            "cover": f"https://{mirror}"+comic.find(name="a").find("div", class_="thumb-overlay").find("img").attrs["src"].removesuffix("?v="),
-            "title": comic.find(name="a").find("div", class_="video-title title-truncate").text.strip()
-        } for comic in comic_list]
-
-        if(fav_comic/20 <= 1):
-            return{
-                "status_code": req.status_code,
-                "data": comic_list
-            }
-        else:
-            return{
-                "status_code": req.status_code,
-                "data": comic_list,
-                "page": page
-            }
-    else:
-        return{
-            "status_code": req.status_code,
-            "msg": "用户未登录"
-        }
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+    }
 
 
 @app.get("/search")
-async def search(query: str, main_tag: int = 0, page: int = 1, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+async def search(query: str, response: Response, page: int = 1, sort=sortBy.Time.value, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
                  ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
 
-    cookies_dict = Cookies(AVS, __cflb, ipcountry, ipm5, remember).__dict__()
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
 
-    req = requests.get(f"https://{mirror}/search/photos", params={
-        "main_tag": main_tag,
+    req_time = int(time.time())
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
         "search_query": query,
+        "page": page,
+        "o": sort
+    }
+
+    req = requests.get(f"https://{mirror}/search", params=req_body, headers=GetHeaders(
+        req_time, "GET").headers, verify=False, cookies=cookies)
+
+    if(req.status_code != 200):
+        return {
+            "errorMsg": req.json()["errorMsg"]
+        }
+
+    cookies_dict = req.cookies.get_dict()
+    for cookie in cookies_dict:
+        response.set_cookie(cookie, cookies_dict[cookie])
+
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+    }
+
+
+@app.get("/history")
+async def get_history(page: int = 1, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                      ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req_time = int(time.time())
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
         "page": page
-    }, cookies=utils.cookiejar_from_dict(cookies_dict))
+    }
+
+    req = requests.get(f"https://{mirror}/watch_list", params=req_body, headers=GetHeaders(
+        req_time, "GET").headers, cookies=cookies, verify=False)
+
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+    }
+
+
+@app.get("/album")
+async def get_album_info(id: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                         ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req_time = int(time.time())
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
+        "comicName": "",
+        "id": id
+    }
+
+    req = requests.get(f"https://{mirror}/album", params=req_body, headers=GetHeaders(
+        req_time, "GET").headers, cookies=cookies, verify=False)
+
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+    }
+
+
+@app.get("/chapter")
+async def get_chapter_info(id: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                           ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req_time = int(time.time())
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
+        "comicName": "",
+        "skip": "",
+        "id": id
+    }
+
+    req = requests.get(f"https://{mirror}/chapter", params=req_body, headers=GetHeaders(
+        req_time, "GET").headers, cookies=cookies, verify=False)
+
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+    }
+
+
+@app.get("/img_list")
+async def get_img_list(id: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                       ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req_time = int(time.time())
+
+    req_body = {
+        "id": id,
+        "mode": "vertical",
+        "page": 0,
+        "app_img_shunt": "NaN"
+    }
+
+    req = requests.get(f"https://{mirror}/chapter_view_template", params=req_body, headers=GetHeaders(
+        req_time, "GET", True).headers, cookies=cookies, verify=False)
 
     document = BeautifulSoup(req.content, "lxml")
 
-    elem = document.find_all("div", class_="p-b-15")
+    img_list = []
 
-    comic_list = []
-
-    for comic in elem:
-        comic_list.append({
-            "title": comic.find("span", class_="video-title title-truncate m-t-5").text.strip(),
-            "author": [author.text.strip() for author in comic.find("div", class_="title-truncate").find_all("a")],
-            "serial": "JM"+comic.find("a").attrs["href"].removeprefix("/album/")[:6],
-            "cover": comic.find("img", class_="lazy_img img-responsive img-rounded").attrs["data-original"],
-            "tags": [tag.text.strip() for tag in comic.find("div", class_="title-truncate tags p-b-5").find_all("a", class_="tag")]
-        })
-
-    if(document.find("ul", class_="pagination")):
-        return{
-            "status_code": req.status_code,
-            "data": comic_list,
-            "page": page
-        }
-    else:
-        return {
-            "status_code": req.status_code,
-            "data": comic_list
-        }
-
-
-@app.get("/peek/{serial}")
-async def peek(serial: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-               ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
-
-    cookies = utils.cookiejar_from_dict(Cookies(
-        AVS, __cflb, ipcountry, ipm5, remember).__dict__())
-
-    if(serial.startswith("JM")):
-        serial = serial.removeprefix("JM")
+    for container in document.find_all("div", class_="center scramble-page"):
+        img_list.append(container.attrs["id"])
 
     return {
-        "data": get_comic_info(serial, cookies)
+        "status_code": req.status_code,
+        "data": img_list
+    }
+
+
+@app.get("/comment/comic")
+async def get_comment(id: str, page: int = 1, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                      ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req_time = int(time.time())
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
+        "mode": "manhua",
+        "aid": id,
+        "page": page
+    }
+
+    req = requests.get(f"https://{mirror}/forum", params=req_body, headers=GetHeaders(
+        req_time, "GET").headers, cookies=cookies, verify=False)
+
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+    }
+
+
+@app.get("/comment/user")
+async def get_self_comment(uid: str, page: int = 1, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""), ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req_time = int(time.time())
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
+        "mode": "undefined",
+        "uid": uid,
+        "page": page
+    }
+
+    req = requests.get(f"https://{mirror}/forum", params=req_body, headers=GetHeaders(
+        req_time, "GET").headers, cookies=cookies, verify=False)
+
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+    }
+
+
+@app.post("/comment")
+async def send_comment(id: str, content: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""), ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req_time = int(time.time())
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
+        "comment": content,
+        "aid": id
+    }
+
+    req = requests.post(f"https://{mirror}/comment", data=req_body, headers=GetHeaders(
+        req_time, "POST").headers, cookies=cookies, verify=False)
+
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+    }
+
+
+@app.get("/tags")
+async def get_tags(AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""), ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req_time = int(time.time())
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null"
+    }
+
+    req = requests.get(f"https://{mirror}/categories", params=req_body, headers=GetHeaders(
+        req_time, "GET").headers, cookies=cookies, verify=False)
+
+    return {
+        "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
     }

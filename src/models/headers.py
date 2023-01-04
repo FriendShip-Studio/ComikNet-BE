@@ -1,23 +1,24 @@
-import typing
+import hashlib
 
 
-class Headers():
+class GetHeaders():
 
     headers = {
-        "Cache-Control": "max-age=0",
         "Accept": "*/*",
-        "Connection": "keep-alive"
+        "Accept-Encoding": "gzip",
+        "User-Agent": "okhttp/3.12.1",
     }
 
-    def __init__(self, host: str, ua: str = "", ref: str = "") -> None:
+    def __init__(self, time: int, method: str, isContent: bool = False) -> None:
 
-        self.headers["Host"] = host
-        self.headers["Origin"] = f"https://{host}"
-        self.headers["Referer"] = f"https://{host}/{ref}"
-        self.headers["User-Agent"] = ua
+        if(isContent):
+            param = f"{time}18comicAPPContent"
+        else:
+            param = f"{time}18comicAPP"
+        token = hashlib.md5(param.encode("utf-8")).hexdigest()
 
-    @property
-    def headers_post(self):
-        self.headers["Content-Type"] = "application/x-www-form-urlencoded"
+        self.headers["tokenparam"] = f"{time},1.4.7"
+        self.headers["token"] = token
 
-        return self.headers
+        if(method == "POST"):
+            self.headers["Content-Type"] = "application/x-www-form-urlencoded"
