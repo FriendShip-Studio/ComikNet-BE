@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Response, Cookie
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from bs4 import BeautifulSoup
 import requests
 import time
@@ -11,6 +12,13 @@ from src.utils.cookies import CookiesTranslate
 from src.utils.parseData import ParseData
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 mirror = "www.asjmapihost.cc"
 
@@ -97,7 +105,8 @@ async def login(body: LoginBody, response: Response):
 
     if(req.status_code != 200):
         return {
-            "errorMsg": req.json()["errorMsg"]
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
         }
 
     cookies_dict = req.cookies.get_dict()
@@ -107,6 +116,20 @@ async def login(body: LoginBody, response: Response):
     return {
         "status_code": req.status_code,
         "data": ParseData(req_time, req.json()["data"])
+    }
+
+
+@app.get("/logout")
+async def logout(response: Response, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                 ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
+
+    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5, remember)
+
+    req = requests.get(f"https://{mirror}/logout",
+                       cookies=cookies, verify=False)
+
+    return {
+        "status_code": req.status_code
     }
 
 
@@ -136,6 +159,7 @@ async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid
 
     if(req.status_code != 200):
         return {
+            "status_code": req.status_code,
             "errorMsg": req.json()["errorMsg"]
         }
 
@@ -171,7 +195,8 @@ async def search(query: str, response: Response, page: int = 1, sort=sortBy.Time
 
     if(req.status_code != 200):
         return {
-            "errorMsg": req.json()["errorMsg"]
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
         }
 
     cookies_dict = req.cookies.get_dict()
@@ -202,6 +227,12 @@ async def get_history(page: int = 1, AVS: str = Cookie(default=""), __cflb: str 
     req = requests.get(f"https://{mirror}/watch_list", params=req_body, headers=GetHeaders(
         req_time, "GET").headers, cookies=cookies, verify=False)
 
+    if(req.status_code != 200):
+        return {
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+        }
+
     return {
         "status_code": req.status_code,
         "data": ParseData(req_time, req.json()["data"])
@@ -226,6 +257,12 @@ async def get_album_info(id: str, AVS: str = Cookie(default=""), __cflb: str = C
 
     req = requests.get(f"https://{mirror}/album", params=req_body, headers=GetHeaders(
         req_time, "GET").headers, cookies=cookies, verify=False)
+
+    if(req.status_code != 200):
+        return {
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+        }
 
     return {
         "status_code": req.status_code,
@@ -253,6 +290,12 @@ async def get_chapter_info(id: str, AVS: str = Cookie(default=""), __cflb: str =
     req = requests.get(f"https://{mirror}/chapter", params=req_body, headers=GetHeaders(
         req_time, "GET").headers, cookies=cookies, verify=False)
 
+    if(req.status_code != 200):
+        return {
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+        }
+
     return {
         "status_code": req.status_code,
         "data": ParseData(req_time, req.json()["data"])
@@ -276,6 +319,12 @@ async def get_img_list(id: str, AVS: str = Cookie(default=""), __cflb: str = Coo
 
     req = requests.get(f"https://{mirror}/chapter_view_template", params=req_body, headers=GetHeaders(
         req_time, "GET", True).headers, cookies=cookies, verify=False)
+
+    if(req.status_code != 200):
+        return {
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+        }
 
     document = BeautifulSoup(req.content, "lxml")
 
@@ -310,6 +359,12 @@ async def get_comment(id: str, page: int = 1, AVS: str = Cookie(default=""), __c
     req = requests.get(f"https://{mirror}/forum", params=req_body, headers=GetHeaders(
         req_time, "GET").headers, cookies=cookies, verify=False)
 
+    if(req.status_code != 200):
+        return {
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+        }
+
     return {
         "status_code": req.status_code,
         "data": ParseData(req_time, req.json()["data"])
@@ -335,6 +390,12 @@ async def get_self_comment(uid: str, page: int = 1, AVS: str = Cookie(default=""
     req = requests.get(f"https://{mirror}/forum", params=req_body, headers=GetHeaders(
         req_time, "GET").headers, cookies=cookies, verify=False)
 
+    if(req.status_code != 200):
+        return {
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+        }
+
     return {
         "status_code": req.status_code,
         "data": ParseData(req_time, req.json()["data"])
@@ -359,6 +420,12 @@ async def send_comment(id: str, content: str, AVS: str = Cookie(default=""), __c
     req = requests.post(f"https://{mirror}/comment", data=req_body, headers=GetHeaders(
         req_time, "POST").headers, cookies=cookies, verify=False)
 
+    if(req.status_code != 200):
+        return {
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+        }
+
     return {
         "status_code": req.status_code,
         "data": ParseData(req_time, req.json()["data"])
@@ -380,6 +447,12 @@ async def get_tags(AVS: str = Cookie(default=""), __cflb: str = Cookie(default="
 
     req = requests.get(f"https://{mirror}/categories", params=req_body, headers=GetHeaders(
         req_time, "GET").headers, cookies=cookies, verify=False)
+
+    if(req.status_code != 200):
+        return {
+            "status_code": req.status_code,
+        "data": ParseData(req_time, req.json()["data"])
+        }
 
     return {
         "status_code": req.status_code,
