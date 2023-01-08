@@ -22,3 +22,9 @@ class GetHeaders():
 
         if(method == "POST"):
             self.headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+        elif(method == "TEST"):
+            self.headers['cache-control'] = 'no-cache'
+            self.headers['expires'] = '0'
+            self.headers['pragma'] = 'no-cache'
+            self.headers["authorization"] = ""

@@ -4,7 +4,7 @@
 
 此项目是 `Friendship Cloud` 的一部分。
 
-(C) Friendship Studio, 2022
+(C) Friendship Studio, 2023
 
 **警告：快速迭代的项目**
 
@@ -31,6 +31,7 @@
 ```bash
 pip install FastAPI BeautifulSoup4 requests
 ```
+
 运行项目根目录下 `main.py` 文件。
 
 ```bash
