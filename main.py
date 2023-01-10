@@ -43,6 +43,8 @@ async def get_captcha(response: Response):
     cookies = req.cookies
     cookies_dict = cookies.get_dict()
 
+    cookies_dict["signup_url"] = url
+
     for cookie in cookies_dict:
         response.set_cookie(cookie, cookies_dict[cookie])
 
@@ -54,7 +56,7 @@ async def get_captcha(response: Response):
 
 @app.post("/register")
 async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                   ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default="")):
+                   ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), signup_url: str = Cookie(default="jmcomic2.onl")):
 
     cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
 
@@ -72,7 +74,7 @@ async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str 
         "submit_signup": ""
     }
 
-    req = requests.post(f"https://{avail_url}/signup", data=req_body, headers=GetHeaders(
+    req = requests.post(f"https://{signup_url}/signup", data=req_body, headers=GetHeaders(
         req_time, "POST").headers, cookies=cookies, verify=False)
 
     msg_list = []
