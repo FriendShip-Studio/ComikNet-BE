@@ -97,7 +97,7 @@ async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str 
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -140,7 +140,7 @@ async def login(body: LoginBody, response: Response, api_mirror: str = Cookie(de
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -222,7 +222,7 @@ async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -258,10 +258,6 @@ async def search(query: str, response: Response, page: int = 1, sort=sortBy.Time
                 "errorMsg": "Unknown Error"
             }
 
-    cookies_dict = req.cookies.get_dict()
-    for cookie in cookies_dict:
-        response.set_cookie(cookie, cookies_dict[cookie])
-
     try:
         return {
             "status_code": req.status_code,
@@ -270,7 +266,7 @@ async def search(query: str, response: Response, page: int = 1, sort=sortBy.Time
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -312,7 +308,7 @@ async def get_history(page: int = 1, AVS: str = Cookie(default=""), __cflb: str 
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -355,7 +351,7 @@ async def get_album_info(id: str, AVS: str = Cookie(default=""), __cflb: str = C
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -399,7 +395,7 @@ async def get_chapter_info(id: str, AVS: str = Cookie(default=""), __cflb: str =
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -456,7 +452,7 @@ async def get_img_list(id: str, AVS: str = Cookie(default=""), __cflb: str = Coo
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -511,7 +507,7 @@ async def get_comment(id: str, page: int = 1, AVS: str = Cookie(default=""), __c
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -555,7 +551,7 @@ async def get_self_comment(uid: str, page: int = 1, AVS: str = Cookie(default=""
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -597,7 +593,7 @@ async def send_comment(id: str, content: str, AVS: str = Cookie(default=""), __c
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
@@ -637,7 +633,7 @@ async def get_tags(AVS: str = Cookie(default=""), __cflb: str = Cookie(default="
     except:
         return{
             "status_code": req.status_code,
-            "data": "Data Error"
+            "errorMsg": "Data Error"
         }
 
 
