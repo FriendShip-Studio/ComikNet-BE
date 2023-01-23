@@ -25,7 +25,7 @@ def GetSegmentationNum(epsId, scramble_id, pictureName):
 # 图片分割合成
 
 
-def SegmentationPicture(imgData, epsId, scramble_id, bookId):
+async def SegmentationPicture(imgData, epsId, scramble_id, bookId):
     num = GetSegmentationNum(epsId, scramble_id, bookId)
     if num <= 1:
         return imgData

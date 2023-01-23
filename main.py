@@ -12,7 +12,7 @@ from src.models.bodys import LoginBody, SignupBody
 from src.models.sort import sortBy
 from src.models.mirrors import PicList, ApiList, WebList
 from src.utils.cookies import CookiesTranslate
-from src.utils.parseData import ParseData
+from src.utils.parseData import ParseData, AuthorStr2List
 from src.utils.parsePic import SegmentationPicture
 
 app = FastAPI()
@@ -186,6 +186,7 @@ async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid
 
     if(sort not in [sortBy.Time.value, sortBy.Images.value]):
         # 此处按图片排序代指按更新时间排序
+        # time代表按收藏时间排序
         sort = sortBy.Time.value
 
     req_body = {
@@ -217,9 +218,12 @@ async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid
         response.set_cookie(cookie, cookies_dict[cookie])
 
     try:
+        data = ParseData(req_time, req.json()["data"])
+        for item in data["list"]:
+            item["author"] = AuthorStr2List(item["author"])
         return {
             "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
+            "data": data
         }
     except:
         return{
@@ -229,7 +233,7 @@ async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid
 
 
 @app.get("/search")
-async def search(query: str, response: Response, page: int = 1, sort=sortBy.Time.value, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+async def search(query: str, page: int = 1, sort=sortBy.Time.value, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
                  ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
@@ -261,9 +265,12 @@ async def search(query: str, response: Response, page: int = 1, sort=sortBy.Time
             }
 
     try:
+        data = ParseData(req_time, req.json()["data"])
+        for item in data["content"]:
+            item["author"] = AuthorStr2List(item["author"])
         return {
             "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
+            "data": data
         }
     except:
         return{
@@ -464,7 +471,7 @@ async def comic_img(id: str, page: str, scramble_id: str = "220980", pic_mirror:
     req = requests.get(
         f"https://{pic_mirror}/media/photos/{id}/{page}.webp", verify=False)
 
-    decode_img = SegmentationPicture(req.content, id, scramble_id, page)
+    decode_img = await SegmentationPicture(req.content, id, scramble_id, page)
 
     return StreamingResponse(io.BytesIO(decode_img), media_type="image/webp")
 

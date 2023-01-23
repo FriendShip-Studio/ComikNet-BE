@@ -14,3 +14,7 @@ def ParseData(time: int, data: str) -> dict:
     result2 = result[0:-result[-1]]
     newData = result2.decode()
     return json.loads(newData)
+
+
+def AuthorStr2List(authorStr: str) -> list:
+    return authorStr.split(" ")
