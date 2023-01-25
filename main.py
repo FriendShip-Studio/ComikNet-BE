@@ -16,6 +16,7 @@ from src.utils.parseData import ParseData, AuthorStr2List
 from src.utils.parsePic import SegmentationPicture
 
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -353,9 +354,12 @@ async def get_album_info(id: str, AVS: str = Cookie(default=""), __cflb: str = C
             }
 
     try:
+        data = ParseData(req_time, req.json()["data"])
+        for item in data["related_list"]:
+            item["author"] = AuthorStr2List(item["author"])
         return {
             "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
+            "data": data
         }
     except:
         return{
@@ -681,6 +685,7 @@ async def speedtest_api():
         })
 
     return {
+        "status_code": 200,
         "data": spend_time
     }
 
@@ -713,6 +718,7 @@ async def speedtest_pic():
         })
 
     return {
+        "status_code": 200,
         "data": spend_time
     }
 
