@@ -13,13 +13,14 @@ from src.models.sort import sortBy
 from src.models.mirrors import PicList, ApiList, WebList
 from src.utils.cookies import CookiesTranslate
 from src.utils.parseData import ParseData, AuthorStr2List
+from src.utils.parseDate import parseDate
 from src.utils.parsePic import SegmentationPicture
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -513,9 +514,13 @@ async def get_comment(id: str, page: int = 1, AVS: str = Cookie(default=""), __c
             }
 
     try:
+        data = ParseData(req_time, req.json()["data"])
         return {
             "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
+            "data": {
+                "list": parseDate(data["list"]),
+                "total": data["total"]
+            }
         }
     except:
         return{
@@ -557,9 +562,13 @@ async def get_self_comment(uid: str, page: int = 1, AVS: str = Cookie(default=""
             }
 
     try:
+        data = ParseData(req_time, req.json()["data"])
         return {
             "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
+            "data": {
+                "list": parseDate(data["list"]),
+                "total": data["total"]
+            }
         }
     except:
         return{
@@ -666,7 +675,7 @@ async def speedtest_api():
         start_time = time.perf_counter()
         try:
             req = requests.get(f"https://{url}/latest", params=req_body, headers=GetHeaders(
-                req_time, "TEST").headers, verify=False)
+                req_time, "TEST").headers, verify=False, timeout=13000)
         except Exception as e:
             print(e)
             spend_time.append({
@@ -700,7 +709,7 @@ async def speedtest_pic():
         start_time = time.perf_counter()
         try:
             req = requests.get(
-                f"https://{url}/media/photos/403567/00002.webp", verify=False, timeout=15000)
+                f"https://{url}/media/photos/403567/00002.webp", verify=False, timeout=14000)
         except:
             spend_time.append({
                 "url": url,

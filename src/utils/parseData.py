@@ -1,5 +1,5 @@
 import hashlib
-from Cryptodome.Cipher import AES
+from Crypto.Cipher import AES
 import base64
 import json
 
