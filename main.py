@@ -1,3 +1,4 @@
+import sys
 from fastapi import FastAPI, Response, Cookie
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,6 +6,10 @@ from bs4 import BeautifulSoup
 import time
 import re
 import requests
+import asyncio
+if sys.platform != "win32":
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 from src.utils.asyncRequests import AsyncRequests
 from src.models.headers import GetHeaders
@@ -134,29 +139,21 @@ async def login(body: LoginBody, response: Response, api_mirror: str = Cookie(de
 
 @app.get("/logout")
 async def logout(response: Response, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                 ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
+                 ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default="")):
 
-    req = requests.get(f"https://{api_mirror}/logout",
-                       cookies=cookies, verify=False)
-
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
-
-    cookies_dict = req.cookies.get_dict()
-    for cookie in cookies_dict:
-        response.set_cookie(cookie, cookies_dict[cookie])
+    cookies = {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    }
+    for cookie in cookies:
+        response.set_cookie(cookie, "")
 
     return {
-        "status_code": req.status_code
+        "status_code": 200,
+        "data": "已登出"
     }
 
 
@@ -267,6 +264,7 @@ async def get_album_info(id: str, AVS: str = Cookie(default=""), __cflb: str = C
         return res
     except:
         return res
+
 
 @app.get("/chapter")
 async def get_chapter_info(id: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
@@ -500,7 +498,7 @@ async def speedtest_api():
 
         start_time = time.perf_counter()
         try:
-            res = await req.get("/latest", params=req_body, headers=GetHeaders(
+            res = await req.get("/latest", req_time, params=req_body, headers=GetHeaders(
                 req_time, "TEST").headers)
             await req.close()
         except Exception as e:

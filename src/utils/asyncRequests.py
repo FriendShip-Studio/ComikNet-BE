@@ -63,10 +63,16 @@ class AsyncRequests:
                         "errorMsg": res["errorMsg"]
                     }
             except:
-                return {
-                    "status_code": response.status,
-                    "errorMsg": "尝试解析源服务器数据时出现错误!"
-                }
+                try:
+                    return {
+                        "status_code": response.status,
+                        "errorMsg": res["errorMsg"]
+                    }
+                except:
+                    return {
+                        "status_code": response.status,
+                        "errorMsg": "尝试解析源服务器数据时出现错误!"
+                    }
 
     async def getContent(self, url: str, headers: dict = None, params: dict = None) -> dict:
 
