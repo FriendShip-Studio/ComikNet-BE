@@ -1,0 +1,6 @@
+aiohttp==3.8.3
+beautifulsoup4==4.11.1
+fastapi==0.89.1
+pycryptodome==3.17
+pydantic==1.10.2
+requests==2.26.0

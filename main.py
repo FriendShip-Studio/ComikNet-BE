@@ -2,25 +2,23 @@ from fastapi import FastAPI, Response, Cookie
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from bs4 import BeautifulSoup
-import requests
 import time
 import re
-import io
+import requests
 
+from src.utils.asyncRequests import AsyncRequests
 from src.models.headers import GetHeaders
 from src.models.bodys import LoginBody, SignupBody
 from src.models.sort import sortBy
 from src.models.mirrors import PicList, ApiList, WebList
-from src.utils.cookies import CookiesTranslate
-from src.utils.parseData import ParseData, AuthorStr2List
+from src.utils.parseData import AuthorStr2List
 from src.utils.parseDate import parseDate
-from src.utils.parsePic import SegmentationPicture
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,7 +28,6 @@ app.add_middleware(
 @app.get("/captcha")
 async def get_captcha(response: Response):
 
-    global avail_url
     avail_url = "jmcomic2.onl"
 
     for url in WebList:
@@ -45,7 +42,7 @@ async def get_captcha(response: Response):
     cookies = req.cookies
     cookies_dict = cookies.get_dict()
 
-    cookies_dict["signup_url"] = url
+    cookies_dict["signup_url"] = avail_url
 
     for cookie in cookies_dict:
         response.set_cookie(cookie, cookies_dict[cookie])
@@ -58,11 +55,17 @@ async def get_captcha(response: Response):
 
 @app.post("/register")
 async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                   ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), signup_url: str = Cookie(default="jmcomic2.onl")):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                   ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), signup_url: str = Cookie(default="jmcomic1.onl")):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(signup_url, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "username": body.username,
@@ -76,11 +79,16 @@ async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str 
         "submit_signup": ""
     }
 
-    req = requests.post(f"https://{signup_url}/signup", data=req_body, headers=GetHeaders(
-        req_time, "POST").headers, cookies=cookies, verify=False)
+    res = req.post("/signup", headers=GetHeaders(
+        req_time, "POST").headers, data=req_body)
+    await req.close()
 
     msg_list = []
-    document = BeautifulSoup(req.content, "lxml")
+    try:
+        document = BeautifulSoup(res["data"], "lxml")
+    except:
+        return res
+
     for script in document.find_all("script"):
         if(script.text.startswith("toastr['error']")):
             msg_list.append({
@@ -93,16 +101,10 @@ async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str 
                 "msg": script.text.removeprefix("toastr['success']")[2:-2]
             })
 
-    try:
-        return {
-            "status_code": req.status_code,
-            "data": msg_list
-        }
-    except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+    return {
+        "status_code": req["status_code"],
+        "data": msg_list
+    }
 
 
 @app.post("/login")
@@ -113,46 +115,26 @@ async def login(body: LoginBody, response: Response, api_mirror: str = Cookie(de
     login_form = {
         "username": body.username,
         "password": body.password,
+        "login_remember": "on",
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
         "view_mode_debug": 1,
         "view_mode": None
     }
 
-    req = requests.post(f"https://{api_mirror}/login", headers=GetHeaders(
-        req_time, "POST").headers, data=login_form, verify=False)
+    req = AsyncRequests(api_mirror)
+    res = await req.post("/login", req_time, headers=GetHeaders(
+        req_time, "POST").headers, data=login_form)
 
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
+    req.setCookies(response)
 
-    cookies_dict = req.cookies.get_dict()
-    for cookie in cookies_dict:
-        response.set_cookie(cookie, cookies_dict[cookie])
-    try:
-        return {
-            "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
-        }
-    except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+    await req.close()
+
+    return res
 
 
 @app.get("/logout")
 async def logout(response: Response, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                 ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                 ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req = requests.get(f"https://{api_mirror}/logout",
                        cookies=cookies, verify=False)
@@ -180,11 +162,17 @@ async def logout(response: Response, AVS: str = Cookie(default=""), __cflb: str 
 
 @app.get("/favorite")
 async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid: str = "0", AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                  ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                  ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     if(sort not in [sortBy.Time.value, sortBy.Images.value]):
         # 此处按图片排序代指按更新时间排序
@@ -194,53 +182,37 @@ async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid
     req_body = {
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
         "view_mode_debug": 1,
-        "view_mode": None,
+        "view_mode": "null",
         "page": page,
         "folder_id": fid,
         "o": sort
     }
 
-    req = requests.get(f"https://{api_mirror}/favorite/", params=req_body, headers=GetHeaders(
-        req_time, "GET").headers, verify=False, cookies=cookies)
-
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
-
-    cookies_dict = req.cookies.get_dict()
-    for cookie in cookies_dict:
-        response.set_cookie(cookie, cookies_dict[cookie])
+    res = await req.get("/favorite", req_time, headers=GetHeaders(
+        req_time, "GET").headers, params=req_body)
+    await req.close()
 
     try:
-        data = ParseData(req_time, req.json()["data"])
-        for item in data["list"]:
+        for item in res["data"]["list"]:
             item["author"] = AuthorStr2List(item["author"])
-        return {
-            "status_code": req.status_code,
-            "data": data
-        }
+        return res
     except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+        return res
 
 
 @app.get("/search")
 async def search(query: str, page: int = 1, sort=sortBy.Time.value, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                 ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                 ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
@@ -251,85 +223,31 @@ async def search(query: str, page: int = 1, sort=sortBy.Time.value, AVS: str = C
         "o": sort
     }
 
-    req = requests.get(f"https://{api_mirror}/search", params=req_body, headers=GetHeaders(
-        req_time, "GET").headers, verify=False, cookies=cookies)
-
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
+    res = await req.get("/search", req_time, headers=GetHeaders(
+        req_time, "GET").headers, params=req_body)
+    await req.close()
 
     try:
-        data = ParseData(req_time, req.json()["data"])
-        for item in data["content"]:
+        for item in res["data"]["list"]:
             item["author"] = AuthorStr2List(item["author"])
-        return {
-            "status_code": req.status_code,
-            "data": data
-        }
+        return res
     except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
-
-
-@app.get("/history")
-async def get_history(page: int = 1, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                      ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
-
-    req_time = int(time.time())
-
-    req_body = {
-        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
-        "view_mode_debug": 1,
-        "view_mode": "null",
-        "page": page
-    }
-
-    req = requests.get(f"https://{api_mirror}/watch_list", params=req_body, headers=GetHeaders(
-        req_time, "GET").headers, cookies=cookies, verify=False)
-
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
-
-    try:
-        return {
-            "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
-        }
-    except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+        return res
 
 
 @app.get("/album")
 async def get_album_info(id: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                         ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                         ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
@@ -339,43 +257,30 @@ async def get_album_info(id: str, AVS: str = Cookie(default=""), __cflb: str = C
         "id": id
     }
 
-    req = requests.get(f"https://{api_mirror}/album", params=req_body, headers=GetHeaders(
-        req_time, "GET").headers, cookies=cookies, verify=False)
-
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
+    res = await req.get("/album", req_time, headers=GetHeaders(
+        req_time, "GET").headers, params=req_body)
+    await req.close()
 
     try:
-        data = ParseData(req_time, req.json()["data"])
-        for item in data["related_list"]:
+        for item in res["data"]["related_list"]:
             item["author"] = AuthorStr2List(item["author"])
-        return {
-            "status_code": req.status_code,
-            "data": data
-        }
+        return res
     except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
-
+        return res
 
 @app.get("/chapter")
 async def get_chapter_info(id: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                           ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                           ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
@@ -386,40 +291,26 @@ async def get_chapter_info(id: str, AVS: str = Cookie(default=""), __cflb: str =
         "id": id
     }
 
-    req = requests.get(f"https://{api_mirror}/chapter", params=req_body, headers=GetHeaders(
-        req_time, "GET").headers, cookies=cookies, verify=False)
+    res = await req.get("/chapter", req_time, headers=GetHeaders(
+        req_time, "GET").headers, params=req_body)
+    await req.close()
 
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
-
-    try:
-        return {
-            "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
-        }
-    except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+    return res
 
 
 @app.get("/img_list")
 async def get_img_list(id: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                       ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                       ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "id": id,
@@ -428,25 +319,16 @@ async def get_img_list(id: str, AVS: str = Cookie(default=""), __cflb: str = Coo
         "app_img_shunt": "NaN"
     }
 
-    req = requests.get(f"https://{api_mirror}/chapter_view_template", params=req_body, headers=GetHeaders(
-        req_time, "GET", True).headers, cookies=cookies, verify=False)
+    res = await req.getContent("/chapter_view_template", req_time, headers=GetHeaders(
+        req_time, "GET", True).headers, params=req_body)
+    await req.close()
 
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
-
-    document = BeautifulSoup(req.content, "lxml")
+    try:
+        document = BeautifulSoup(res["data"], "lxml")
+    except:
+        return res
 
     img_list = []
-
     for container in document.find_all("div", class_="center scramble-page"):
         img_list.append(container.attrs["id"])
 
@@ -457,37 +339,28 @@ async def get_img_list(id: str, AVS: str = Cookie(default=""), __cflb: str = Coo
     except Exception as e:
         print(e)
 
-    try:
-        return {
-            "status_code": req.status_code,
-            "data": img_list,
-            "scramble_id": scramble_id
+    return {
+        "status_code": res["status_code"],
+        "data": {
+            "scramble_id": scramble_id,
+            "img_list": img_list
         }
-    except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
-
-
-@app.get("/img")
-async def comic_img(id: str, page: str, scramble_id: str = "220980", pic_mirror: str = Cookie(default=PicList[0])):
-
-    req = requests.get(
-        f"https://{pic_mirror}/media/photos/{id}/{page}.webp", verify=False)
-
-    decode_img = await SegmentationPicture(req.content, id, scramble_id, page)
-
-    return StreamingResponse(io.BytesIO(decode_img), media_type="image/webp")
+    }
 
 
 @app.get("/comment/comic")
 async def get_comment(id: str, page: int = 1, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                      ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                      ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
@@ -498,44 +371,35 @@ async def get_comment(id: str, page: int = 1, AVS: str = Cookie(default=""), __c
         "page": page
     }
 
-    req = requests.get(f"https://{api_mirror}/forum", params=req_body, headers=GetHeaders(
-        req_time, "GET").headers, cookies=cookies, verify=False)
-
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
+    res = await req.get("/forum", req_time, headers=GetHeaders(
+        req_time, "GET").headers, params=req_body)
+    await req.close()
 
     try:
-        data = ParseData(req_time, req.json()["data"])
         return {
-            "status_code": req.status_code,
+            "status_code": res["status_code"],
             "data": {
-                "list": parseDate(data["list"]),
-                "total": data["total"]
+                "list": parseDate(res["data"]["list"]),
+                "total": res["data"]["total"]
             }
         }
     except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+        return res
 
 
 @app.get("/comment/user")
 async def get_self_comment(uid: str, page: int = 1, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                           ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                           ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
@@ -546,44 +410,35 @@ async def get_self_comment(uid: str, page: int = 1, AVS: str = Cookie(default=""
         "page": page
     }
 
-    req = requests.get(f"https://{api_mirror}/forum", params=req_body, headers=GetHeaders(
-        req_time, "GET").headers, cookies=cookies, verify=False)
-
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
+    res = await req.get("/forum", req_time, headers=GetHeaders(
+        req_time, "GET").headers, params=req_body)
+    await req.close()
 
     try:
-        data = ParseData(req_time, req.json()["data"])
         return {
-            "status_code": req.status_code,
+            "status_code": res["status_code"],
             "data": {
-                "list": parseDate(data["list"]),
-                "total": data["total"]
+                "list": parseDate(res["data"]["list"]),
+                "total": res["data"]["total"]
             }
         }
     except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+        return res
 
 
 @app.post("/comment")
 async def send_comment(id: str, content: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                       ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                       ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
@@ -593,39 +448,26 @@ async def send_comment(id: str, content: str, AVS: str = Cookie(default=""), __c
         "aid": id
     }
 
-    req = requests.post(f"https://{api_mirror}/comment", data=req_body, headers=GetHeaders(
-        req_time, "POST").headers, cookies=cookies, verify=False)
+    res = await req.post("/comment", req_time, headers=GetHeaders(
+        req_time, "POST").headers, data=req_body)
+    await req.close()
 
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
-    try:
-        return {
-            "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
-        }
-    except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+    return res
 
 
 @app.get("/tags")
 async def get_tags(AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
-                   ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
-    cookies = CookiesTranslate(AVS, __cflb, ipcountry, ipm5)
+                   ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
 
     req_body = {
         "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
@@ -633,30 +475,11 @@ async def get_tags(AVS: str = Cookie(default=""), __cflb: str = Cookie(default="
         "view_mode": "null"
     }
 
-    req = requests.get(f"https://{api_mirror}/categories", params=req_body, headers=GetHeaders(
-        req_time, "GET").headers, cookies=cookies, verify=False)
+    res = await req.get("/categories", req_time, headers=GetHeaders(
+        req_time, "GET").headers, params=req_body)
+    await req.close()
 
-    if(req.status_code != 200):
-        try:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": req.json()["errorMsg"]
-            }
-        except:
-            return {
-                "status_code": req.status_code,
-                "errorMsg": "Unknown Error"
-            }
-    try:
-        return {
-            "status_code": req.status_code,
-            "data": ParseData(req_time, req.json()["data"])
-        }
-    except:
-        return{
-            "status_code": req.status_code,
-            "errorMsg": "Data Error"
-        }
+    return res
 
 
 @app.get("/speed/api")
@@ -672,10 +495,14 @@ async def speedtest_api():
     for url in ApiList:
         req_time = int(time.time())
 
+        req = AsyncRequests(url, conn_timeout=5, read_timeout=13)
+        req_time = int(time.time())
+
         start_time = time.perf_counter()
         try:
-            req = requests.get(f"https://{url}/latest", params=req_body, headers=GetHeaders(
-                req_time, "TEST").headers, verify=False, timeout=13000)
+            res = await req.get("/latest", params=req_body, headers=GetHeaders(
+                req_time, "TEST").headers)
+            await req.close()
         except Exception as e:
             print(e)
             spend_time.append({
@@ -683,44 +510,12 @@ async def speedtest_api():
                 "time": -1
             })
             continue
-        if(req.status_code != 200):
-            spend_time.append({
-                "url": url,
-                "time": -1
-            })
-        spend_time.append({
-            "url": url,
-            "time": int((time.perf_counter()-start_time)*1000)
-        })
-
-    return {
-        "status_code": 200,
-        "data": spend_time
-    }
-
-
-@app.get("/speed/pic")
-async def speedtest_pic():
-
-    spend_time = []
-
-    for url in PicList:
-
-        start_time = time.perf_counter()
-        try:
-            req = requests.get(
-                f"https://{url}/media/photos/403567/00002.webp", verify=False, timeout=14000)
-        except:
+        if(res["status_code"] != 200):
             spend_time.append({
                 "url": url,
                 "time": -1
             })
             continue
-        if(req.status_code != 200):
-            spend_time.append({
-                "url": url,
-                "time": -1
-            })
         spend_time.append({
             "url": url,
             "time": int((time.perf_counter()-start_time)*1000)

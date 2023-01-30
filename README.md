@@ -35,5 +35,5 @@ pip install FastAPI BeautifulSoup4 requests
 运行项目根目录下 `main.py` 文件。
 
 ```bash
-uvicorn main:app --reload
+uvicorn main:app --host 0.0.0.0 --port 19190 --reload
 ```
