@@ -86,16 +86,10 @@ class AsyncRequests:
                 }
 
             try:
-                if(res["code"] == 200):
-                    return {
-                        "status_code": response.status,
-                        "data": res
-                    }
-                else:
-                    return {
-                        "status_code": response.status,
-                        "errorMsg": json.loads(res)["errorMsg"]
-                    }
+                return {
+                    "status_code": response.status,
+                    "data": res
+                }
             except:
                 return {
                     "status_code": response.status,

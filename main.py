@@ -1,8 +1,4 @@
 import sys
-from fastapi import FastAPI, Response, Cookie
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from bs4 import BeautifulSoup
 import time
 import re
 import requests
@@ -10,6 +6,13 @@ import asyncio
 if sys.platform != "win32":
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+    
+from fastapi import FastAPI, Response, Cookie
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from bs4 import BeautifulSoup
+
 
 from src.utils.asyncRequests import AsyncRequests
 from src.models.headers import GetHeaders
@@ -23,7 +26,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -107,7 +110,7 @@ async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str 
             })
 
     return {
-        "status_code": req["status_code"],
+        "status_code": res["status_code"],
         "data": msg_list
     }
 
@@ -225,7 +228,7 @@ async def search(query: str, page: int = 1, sort=sortBy.Time.value, AVS: str = C
     await req.close()
 
     try:
-        for item in res["data"]["list"]:
+        for item in res["data"]["content"]:
             item["author"] = AuthorStr2List(item["author"])
         return res
     except:
@@ -269,7 +272,6 @@ async def get_album_info(id: str, AVS: str = Cookie(default=""), __cflb: str = C
 @app.get("/chapter")
 async def get_chapter_info(id: str, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
                            ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
-
     req_time = int(time.time())
 
     req = AsyncRequests(api_mirror, {
@@ -317,7 +319,7 @@ async def get_img_list(id: str, AVS: str = Cookie(default=""), __cflb: str = Coo
         "app_img_shunt": "NaN"
     }
 
-    res = await req.getContent("/chapter_view_template", req_time, headers=GetHeaders(
+    res = await req.getContent("/chapter_view_template", headers=GetHeaders(
         req_time, "GET", True).headers, params=req_body)
     await req.close()
 
@@ -332,7 +334,8 @@ async def get_img_list(id: str, AVS: str = Cookie(default=""), __cflb: str = Coo
 
     scramble_id = 220980
     try:
-        mo = re.search(r"(?<=var scramble_id = )\w+", req.text)
+        mo = re.search(r"(?<=var scramble_id = )\w+",
+                       res["data"].decode("utf-8"))
         scramble_id = int(mo.group())
     except Exception as e:
         print(e)
@@ -522,6 +525,14 @@ async def speedtest_api():
     return {
         "status_code": 200,
         "data": spend_time
+    }
+
+
+@app.get("/speed/pic")
+async def get_picMirrorList():
+    return {
+        "status_code": 200,
+        "data": PicList
     }
 
 
