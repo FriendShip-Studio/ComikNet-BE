@@ -108,7 +108,7 @@ class AsyncRequests:
                 }
 
             try:
-                if(res["status_code"] == 200):
+                if(response.status == 200):
                     return {
                         "status_code": response.status,
                         "data": ParseData(req_time, res["data"])
