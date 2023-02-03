@@ -87,7 +87,7 @@ async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str 
         "submit_signup": ""
     }
 
-    res = req.post("/signup", headers=GetHeaders(
+    res = req.post("/signup", req_time,headers=GetHeaders(
         req_time, "POST").headers, data=req_body)
     await req.close()
 
