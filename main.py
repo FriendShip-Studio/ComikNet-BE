@@ -87,11 +87,12 @@ async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str 
         "submit_signup": ""
     }
 
-    res = req.postContent("/signup", headers=GetHeaders(
+    res = await req.postContent("/signup", headers=GetHeaders(
         req_time, "POST").headers, data=req_body)
     await req.close()
 
     msg_list = []
+
     try:
         document = BeautifulSoup(res["data"], "lxml")
     except:
