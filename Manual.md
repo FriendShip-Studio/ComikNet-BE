@@ -26,6 +26,8 @@
 
 **: 尚在开发中*  
 
+加入 ComikNet Insider Preview，则说明你已同意[隐私协议](https://wiki.friendship.org.cn/wiki/FriendshipWiki:Privacy)。
+
 ## 部署
 
 言归正传，我们将指导你如何部署并使用 ComikNet。
