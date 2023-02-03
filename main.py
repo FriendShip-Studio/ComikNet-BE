@@ -7,7 +7,7 @@ if sys.platform != "win32":
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
-    
+
 from fastapi import FastAPI, Response, Cookie
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,7 +36,7 @@ app.add_middleware(
 @app.get("/captcha")
 async def get_captcha(response: Response):
 
-    avail_url = "jmcomic2.onl"
+    avail_url = WebList[0]
 
     for url in WebList:
         try:
@@ -44,7 +44,7 @@ async def get_captcha(response: Response):
                 f"https://{url}/login", verify=False, timeout=15000)
         except:
             continue
-        if(req.status_code == 200):
+        if(req.status_code == 200 or req.status_code == 302):
             avail_url = url
             break
     cookies = req.cookies
@@ -87,7 +87,7 @@ async def register(body: SignupBody, AVS: str = Cookie(default=""), __cflb: str 
         "submit_signup": ""
     }
 
-    res = req.post("/signup", req_time,headers=GetHeaders(
+    res = req.postContent("/signup", headers=GetHeaders(
         req_time, "POST").headers, data=req_body)
     await req.close()
 
