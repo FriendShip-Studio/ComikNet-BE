@@ -28,9 +28,7 @@ class AsyncRequests:
         for cookie in cookies_dict:
             res.set_cookie(key=cookie, value=cookies_dict[cookie].value,
                            expires=cookies_dict[cookie]["expires"],
-                           path=cookies_dict[cookie]["path"], secure=cookies_dict[cookie]["secure"],
-                           httponly=cookies_dict[cookie]["httponly"],
-                           samesite="none" if(cookies_dict[cookie]["samesite"] == "") else cookies_dict[cookie]["samesite"])
+                           path=cookies_dict[cookie]["path"])
 
     def getCookies(self) -> dict:
         cookies_dict = dict(
