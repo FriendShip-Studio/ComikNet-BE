@@ -12,4 +12,7 @@ class SignupBody(BaseModel):
     email: str
     captcha: str
     sex: str
-    
+
+
+class FavorBody(BaseModel):
+    aid: str

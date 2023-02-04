@@ -16,7 +16,7 @@ from bs4 import BeautifulSoup
 
 from src.utils.asyncRequests import AsyncRequests
 from src.models.headers import GetHeaders
-from src.models.bodys import LoginBody, SignupBody
+from src.models.bodys import LoginBody, SignupBody, FavorBody
 from src.models.sort import sortBy
 from src.models.mirrors import PicList, ApiList, WebList
 from src.utils.parseData import AuthorStr2List
@@ -162,7 +162,7 @@ async def logout(response: Response, AVS: str = Cookie(default=""), __cflb: str 
 
 
 @app.get("/favorite")
-async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid: str = "0", AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+async def get_fav(page: int = 1, sort=sortBy.Time.value, fid: str = "0", AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
                   ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
 
     req_time = int(time.time())
@@ -199,6 +199,34 @@ async def get_fav(response: Response, page: int = 1, sort=sortBy.Time.value, fid
         return res
     except:
         return res
+
+
+@app.post("/favorite")
+async def update_fav(fav: FavorBody, AVS: str = Cookie(default=""), __cflb: str = Cookie(default=""),
+                     ipcountry: str = Cookie(default=""), ipm5: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
+
+    req_time = int(time.time())
+
+    req = AsyncRequests(api_mirror, {
+        "AVS": AVS,
+        "__cflb": __cflb,
+        "ipcountry": ipcountry,
+        "ipm5": ipm5,
+        "remember": remember
+    })
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
+        "aid": fav.aid
+    }
+
+    res = await req.post("/favorite", req_time, headers=GetHeaders(
+        req_time, "POST").headers, data=req_body)
+    await req.close()
+
+    return res
 
 
 @app.get("/search")
