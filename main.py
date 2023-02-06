@@ -18,7 +18,7 @@ from src.utils.asyncRequests import AsyncRequests
 from src.models.headers import GetHeaders
 from src.models.bodys import LoginBody, SignupBody, FavorBody
 from src.models.sort import sortBy
-from src.models.mirrors import PicList, ApiList, WebList
+from src.models.mirrors import PicList, ApiList, WebDict, WebList
 from src.utils.parseData import AuthorStr2List
 from src.utils.parseDate import parseDate
 
@@ -562,6 +562,14 @@ async def get_picMirrorList():
     return {
         "status_code": 200,
         "data": PicList
+    }
+
+
+@app.get("/speed/web")
+async def get_webMirrorList():
+    return {
+        "status_code": 200,
+        "data": WebDict
     }
 
 
