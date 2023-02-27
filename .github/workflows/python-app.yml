@@ -36,7 +36,6 @@ jobs:
       run: |
         nohup uvicorn main:app --port 8000 &
     - name: Setup ENV
-      uses:  FriendShip-Studio/ComikNet-BE@main
       with:
         username: ${{ secrets.USERNAME }}
         password: ${{ secrets.PASSWORD }}
