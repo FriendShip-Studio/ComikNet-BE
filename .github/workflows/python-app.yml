@@ -27,6 +27,8 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -35,10 +37,6 @@ jobs:
     - name: Start the Remote Server
       run: |
         nohup uvicorn main:app --port 8000 &
-    - name: Setup ENV
-      with:
-        username: ${{ secrets.USERNAME }}
-        password: ${{ secrets.PASSWORD }}
     - name: Run the test
       run: |
         pytest
