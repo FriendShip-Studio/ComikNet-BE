@@ -1,6 +1,0 @@
-aiohttp
-bs4
-fastapi
-pycryptodome
-requests
-uvicorn[standard]
