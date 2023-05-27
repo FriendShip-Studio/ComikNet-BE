@@ -177,7 +177,7 @@ async def pica_getSubComments(
     return res
 
 
-@router.get("/album/chapter", response_model=StandardResponse)
+@router.get("/album/chapters", response_model=StandardResponse)
 async def pica_getAlbumChapter(
     album_id: str, page: int = 1, pica_token: str = Cookie(default="")
 ):

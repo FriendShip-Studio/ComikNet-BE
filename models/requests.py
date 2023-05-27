@@ -46,4 +46,3 @@ class SearchInfo(BaseModel):
     page: int = 1
     sort: Optional[Union[JMSortRule, PicaSortRule]] = None
     append_query: Optional[List[str]] = None
-
