@@ -72,6 +72,59 @@ async def jm_getAlbum(album_id: str, AVS: str = Cookie(default=""), remember: st
         return StandardResponse(status_code=res.status_code, error_msg=res.error_msg)
 
 
+@router.get("/chapters", response_model=StandardResponse)
+async def jm_getChapters(album_id: str, AVS: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
+    # 章节信息
+    req = JMRequests(api_mirror, {
+        "AVS": AVS,
+        "remember": remember
+    })
+
+    req_body = {
+        "key": "0b931a6f4b5ccc3f8d870839d07ae7b2",
+        "view_mode_debug": 1,
+        "view_mode": "null",
+        "comicName": "",
+        "skip": "",
+        "id": album_id
+    }
+
+    res = await req.get("/chapter", params=req_body)
+    await req.close()
+
+    try:
+        assert res.data is not None
+        return StandardResponse(status_code=200, data=res.data)
+    except AssertionError:
+        return StandardResponse(status_code=res.status_code, error_msg=res.error_msg)
+
+
+@router.get("/img_list", response_model=StandardResponse)
+async def jm_getImagesList(chapter_id: str, AVS: str = Cookie(default=""), remember: str = Cookie(default=""), api_mirror: str = Cookie(default=ApiList[0])):
+    # 图片列表
+    req = JMRequests(api_mirror,{
+        "AVS": AVS,
+        "remember": remember
+    })
+    
+    req_body={
+        "id":chapter_id,
+        "mode": "vertical",
+        "page": 0,
+        "app_img_shunt": "NaN"
+    }
+    # Alert! GetContent is desgined for the unencrypted data, but Chapter's data is encrypted, so you need to use Get instead.
+    res=await req.getContent("/chapter_view_template",params=req_body)
+    await req.close()
+
+    try:
+        assert res.data is not None
+        return StandardResponse(status_code=200, data=res.data)
+    except AssertionError:
+        return StandardResponse(status_code=res.status_code, error_msg=res.error_msg)
+    
+
+
 @router.get("/logout", response_model=StandardResponse)
 async def jm_logout(response: Response):
     # 登出
@@ -139,4 +192,3 @@ async def jm_addFavor(album_id: str, AVS: str = Cookie(default=""), remember: st
     await req.close()
 
     return res
-
