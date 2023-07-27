@@ -9,11 +9,14 @@ class Login_Form(BaseModel):
     password: str
 
 
-class FSC_UserDeposit(BaseModel):
-    isAccepted: bool
+class Cloud_Reigister_Form(BaseModel):
+    pica_form: Login_Form
+    jm_form: Login_Form
+    username: str
+    password: str
 
 
-class Pica_Register_Form(FSC_UserDeposit, BaseModel):
+class Pica_Register_Form(BaseModel):
     # 哔咔注册不再需要真实的邮箱和邮箱验证，用户忘记密码将直接导致账户遗失
     email: str
     password: str
